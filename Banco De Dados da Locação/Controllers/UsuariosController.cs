@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Banco_De_Dados_da_Locação.Models;
 using mf_dev_backend_2023.Models;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 
 namespace Banco_De_Dados_da_Locação.Controllers
 {
@@ -26,6 +28,66 @@ namespace Banco_De_Dados_da_Locação.Controllers
                           View(await _context.Usuarios.ToListAsync()) :
                           Problem("Entity set 'AppDbContext.Usuarios'  is null.");
         }
+
+        public IActionResult Login()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Login(Usuario usuario)
+        {
+            var dados = await _context.Usuarios
+                .FindAsync(usuario.Id);
+
+            if(dados == null)
+            {
+                ViewBag.Message = "Usuário e/ou senha invalidos";
+                return View();
+            }
+
+            bool senhaOK = BCrypt.Net.BCrypt.Verify(usuario.Senha, dados.Senha);
+
+            if (senhaOK)
+            {
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.Name, dados.Nome),
+                    new Claim(ClaimTypes.NameIdentifier, dados.Id.ToString()),
+                    new Claim(ClaimTypes.Role, dados.Perfil.ToString())
+
+                };
+
+                var usuarioIdentity = new ClaimsIdentity(claims, "'login");
+                ClaimsPrincipal principal = new ClaimsPrincipal(usuarioIdentity);
+
+                var props = new AuthenticationProperties
+                {
+                    AllowRefresh = true,
+                    ExpiresUtc = DateTime.UtcNow.ToLocalTime().AddHours(8),
+                    IsPersistent = true,
+                };
+
+                await HttpContext.SignInAsync(principal, props);
+
+                return Redirect("/");
+
+            }
+            else
+            {
+                ViewBag.Message = "Usuário e/ou senha invalidos";
+            }
+
+            return View();
+        }
+
+        public async Task<IActionResult> logout() 
+        {
+            await HttpContext.SignOutAsync();
+
+            return RedirectToAction("Login", "Usuarios");
+        
+        }        
 
         // GET: Usuarios/Details/5
         public async Task<IActionResult> Details(int? id)
@@ -60,6 +122,7 @@ namespace Banco_De_Dados_da_Locação.Controllers
         {
             if (ModelState.IsValid)
             {
+                usuario.Senha = BCrypt.Net.BCrypt.HashPassword(usuario.Senha);
                 _context.Add(usuario);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
@@ -99,6 +162,7 @@ namespace Banco_De_Dados_da_Locação.Controllers
             {
                 try
                 {
+                    usuario.Senha = BCrypt.Net.BCrypt.HashPassword(usuario.Senha);
                     _context.Update(usuario);
                     await _context.SaveChangesAsync();
                 }

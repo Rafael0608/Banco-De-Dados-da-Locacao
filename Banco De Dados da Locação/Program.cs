@@ -2,6 +2,7 @@ using Banco_De_Dados_da_Locação.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Banco_De_Dados_da_Locação.Data;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace Banco_De_Dados_da_Locação
 {
@@ -21,6 +22,21 @@ namespace Banco_De_Dados_da_Locação
             builder.Services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+            builder.Services.Configure<CookiePolicyOptions>(options =>
+            {
+                // This lambda determines whether user consent for non-essential cookies is needed for a given request.
+                options.CheckConsentNeeded = context => true;
+                options.MinimumSameSitePolicy = SameSiteMode.None;
+            });
+
+            builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                .AddCookie(options => {
+                    options.AccessDeniedPath = "/Usuarios/AccessDenied/";
+                    options.LoginPath = "/Usuarios/Login/";
+                });
+
+
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -36,6 +52,7 @@ namespace Banco_De_Dados_da_Locação
 
             app.UseRouting();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllerRoute(
